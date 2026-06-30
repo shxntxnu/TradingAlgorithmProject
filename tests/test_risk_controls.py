@@ -5,7 +5,8 @@ import asyncio
 # Resolve Windows ProactorEventLoop signal set_wakeup_fd issues before importing ibkr_client
 if sys.platform == 'win32':
     try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        if not isinstance(asyncio.get_event_loop_policy(), asyncio.WindowsSelectorEventLoopPolicy):
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     except AttributeError:
         pass
 

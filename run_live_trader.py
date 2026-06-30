@@ -8,7 +8,8 @@ from datetime import datetime, timedelta
 # Adjust asyncio event loop policy on Windows to prevent set_wakeup_fd errors with ib_insync
 if sys.platform == 'win32':
     try:
-        asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        if not isinstance(asyncio.get_event_loop_policy(), asyncio.WindowsSelectorEventLoopPolicy):
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
     except AttributeError:
         pass
 
