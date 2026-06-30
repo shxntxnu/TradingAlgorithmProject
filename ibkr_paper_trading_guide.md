@@ -84,28 +84,56 @@ python -m unittest discover -s tests
 ```
 Ensure all tests report `OK`.
 
-### 2. Run the Streamlit Dashboard
-Launch the dashboard to monitor live equity, open positions, recent trade logs, and keep the Manual Emergency Kill Switch accessible:
+### 2. Run the Streamlit Dashboard (Live Control Panel)
+Launch the visual control panel to monitor live equity, check active positions, view executions, track orders, and keep the Manual Emergency Kill Switch accessible:
 ```powershell
-streamlit run dashboard/streamlit_app.py
+python -m streamlit run dashboard/streamlit_app.py
 ```
 Open the local URL (typically `http://localhost:8501`) in your browser.
 
-### 3. Run Ingestion and Live Execution Loop
-Create a main runner script (e.g. `run_live_system.py`) that executes your daily cycle. It should perform the following loop:
-1. Check if the **Kill Switch** is active (`risk_controls.is_kill_switch_active()`). If active, halt.
-2. Ingest daily prices (`DataIngester`) and save to local storage (`LocalParquetStore`).
-3. Compute features (`compute_features()`).
-4. Generate Model Predictions (direction probability, volatility forecasting, beta filters).
-5. Generate Signal (`SignalGenerator.generate_signals()`).
-6. If a `BUY` or `SELL` signal is generated:
-   - Query current equity and exposures via the client.
-   - Run the trade through `risk_controls.validate_proposed_order()`.
-   - Compute size and stop-loss level (`PositionSizer.calculate_position_size()`).
-   - Submit the bracket order via `client.place_bracket_order()`.
-7. Log the transaction (`AuditLogger.log_event()`).
+**Dashboard Live Settings**:
+- In the **left sidebar**, select **Live Paper Trading (TWS / Gateway)**.
+- Set the **Host** (default: `127.0.0.1`) and **Port** (e.g. `4002` for Gateway, `7497` for TWS).
+- Check **Auto-refresh** to pull socket updates every 5 seconds.
+- You can now visually track:
+  - **Live Bracket Orders**: Parent limit orders are displayed with child stop-loss orders nested beneath them.
+  - **Interactive Cancellations**: Click **Cancel ❌** next to any active order to cancel it on the broker's books.
+  - **Live Execution Log**: Shows fills, side (bought/sold), shares, price, and commissions.
+  - **Emergency Kill Switch**: Press the red button to instantly cancel all orders and flatten positions on Gateway/TWS.
 
-Run the loop on a schedule (e.g., using `cron` on Linux or Windows Task Scheduler) shortly after market close or before market open.
+### 3. Run the Automated Live Trader Loop (`run_live_trader.py`)
+We have created the production runner [run_live_trader.py](file:///d:/Documents/_MyStuff/Projects/TradingAlgorithmProject/run_live_trader.py) which handles all steps of the daily execution loop.
+
+#### Available CLI Parameters
+- `--tickers`: Comma-separated list of symbols to trade (e.g., `--tickers AAPL,MSFT,TSLA`). Default is `AAPL,MSFT`.
+- `--port`: API Socket Port. Use **`4002`** for IB Gateway Paper or **`7497`** for TWS Paper. Default is `4002`.
+- `--live`: Boolean flag. By default, the script runs in **dry-run** mode for safety. You must include `--live` to send real paper-trading orders.
+- `--risk`: Fraction of total portfolio equity to risk per trade. Default is `0.01` (representing 1%).
+- `--client-id`: Unique client socket ID to connect to TWS. Default is `1`.
+
+#### Running Steps
+1. **Execute in Dry-Run Mode** (Safe verification):
+   Before letting the script place orders, run it in simulation mode to verify connections and download market data:
+   ```powershell
+   python run_live_trader.py --tickers AAPL,MSFT --port 4002
+   ```
+   - *Expected Output*: You should see `Mode: DRY RUN (MOCK)`. The system will fetch SPY and AAPL/MSFT data, train models, check event blackouts, and log a `HOLD`, `BUY`, or `SELL` signal without sending orders.
+
+2. **Execute in Live Paper-Trading Mode** (Sends real orders):
+   To allow the system to connect and place bracket orders on TWS/Gateway:
+   ```powershell
+   python run_live_trader.py --tickers AAPL,MSFT --port 4002 --live
+   ```
+   - *Expected Output*: You should see `Mode: LIVE PAPER TRADING`. If a buy signal is generated and passes the Risk Engine (leverage/concentration limits), the bracket order (Entry Limit + Standing Stop-Loss) will be submitted to the broker.
+
+3. **Schedule the Daily Execution**:
+   To run this script automatically on your machine, set up a cron job (Linux/macOS) or Windows Task Scheduler.
+   - For daily equities, configure the scheduler to run **once a day, 15 minutes before the market close (3:45 PM EST)** or **shortly after market open (9:45 AM EST)**.
+   - Example Windows PowerShell Task Action:
+     ```powershell
+     Program/script: python
+     Add arguments: D:\Documents\_MyStuff\Projects\TradingAlgorithmProject\run_live_trader.py --tickers AAPL,MSFT --port 4002 --live
+     ```
 
 ---
 
