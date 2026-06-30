@@ -114,7 +114,7 @@ def run_trading_cycle(tickers: list, port: int, client_id: int, live: bool, risk
             filter_results = factor_filter.analyze_exposure(df_feats['ret_1d'].tail(60), df_feats['index_ret_1d'].tail(60))
             
             # 8. Generate Trading Signals
-            signal_gen = SignalGenerator(confidence_threshold=0.55)
+            signal_gen = SignalGenerator(confidence_threshold=0.55, blackout_window_days=0)
             signal = signal_gen.generate_signals(
                 ticker=ticker,
                 df=df_feats,
